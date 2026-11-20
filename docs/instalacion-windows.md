@@ -30,6 +30,9 @@ Resultado: `installer\dist\UserProvisioner-Setup-1.0.0.exe`.
   - Windows 10/11: `Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0`
   - Windows Server: `Install-WindowsFeature RSAT-AD-PowerShell`
 
+Con winget, aceptando los términos sin preguntar (desde una consola de PowerShell, no desde ISE):
+`winget install --id Microsoft.msodbcsql.18 -e --source winget --accept-source-agreements --accept-package-agreements`
+
 Ejecutar el instalador como administrador. El asistente pide:
 
 | Página | Datos |
@@ -57,17 +60,44 @@ Qué hace el instalador:
 1. Al terminar, el instalador abre `https://localhost:8444/`. Como AD todavía no está configurado, se muestra la
    **configuración inicial**. Esta pantalla solo responde a accesos desde la propia VM.
 2. Cargar los datos de AD (dominio, servidor, OU, clave genérica y, si hace falta, la cuenta de servicio) y de SQL.
+   - **OU** es obligatoria: es donde se crea el usuario. Sin OU propia: `CN=Users,DC=<dominio>,DC=local`.
+   - **Driver ODBC**: dejarlo vacío usa el ODBC Driver for SQL Server más nuevo instalado.
+   - La clave genérica tiene que cumplir la política de contraseñas del dominio.
 3. Ingresar como `ebitadmin` con su clave de dominio. En *Configuración*, usar **Probar AD** y **Probar SQL**.
 4. En *Roles*, revisar el perfil de cada rol. En *Administradores*, habilitar a los demás admins.
 
 ### Con qué cuenta se conecta a AD y SQL
-El servicio corre como **SYSTEM**. Con esa cuenta:
+El servicio corre como **SYSTEM**. En AD solo se crea el usuario (sin grupos): rol, perfil y BU van en Suitestensa. Con esa cuenta:
 - **AD:** validar el login y leer funcionan con la cuenta de equipo. Para **crear usuarios** hay que cargar una
   **cuenta de servicio** en *Configuración* con delegación para crear y eliminar usuarios en la OU.
   Otra opción es cambiar la cuenta con la que corre el servicio en `services.msc`, y darle control total sobre `C:\ProgramData\UserProvisioner`.
 - **SQL:** con autenticación de Windows se conecta como la cuenta de equipo (`DOMINIO\VM$`). Hay dos opciones:
   - Usar un usuario SQL, que se carga en *Configuración*.
   - Crear el login de la cuenta de equipo en SQL Server, con lectura e INSERT en las tablas del alta.
+
+**El usuario SQL de *Configuración* es un login de SQL Server, no una cuenta de dominio.** Si se carga una
+cuenta de dominio (p. ej. `ebitadmin`), SQL responde `Login failed for user ... (18456)`. Una cuenta de dominio
+solo entra con autenticación de Windows: usuario SQL vacío y el servicio corriendo con esa cuenta.
+
+**PC o VM fuera del dominio:** la autenticación de Windows no sirve (SYSTEM no tiene identidad en el dominio),
+así que hay que usar un login SQL. El servidor tiene que estar en modo *SQL Server and Windows Authentication*
+(Propiedades del servidor → Seguridad; requiere reiniciar SQL). Ejemplo de login:
+
+```sql
+CREATE LOGIN svc_altas WITH PASSWORD = '<clave fuerte>', CHECK_POLICY = ON;
+USE ExtensaRadio;     CREATE USER svc_altas FOR LOGIN svc_altas;
+ALTER ROLE db_datareader ADD MEMBER svc_altas; ALTER ROLE db_datawriter ADD MEMBER svc_altas;
+USE SL_UserAndConfig; CREATE USER svc_altas FOR LOGIN svc_altas;
+ALTER ROLE db_datareader ADD MEMBER svc_altas; ALTER ROLE db_datawriter ADD MEMBER svc_altas;
+```
+
+Para comprobar AD antes de cargarlo (con RSAT):
+```powershell
+Test-NetConnection <DC> -Port 9389   # AD Web Services
+Test-NetConnection <DC> -Port 389    # LDAP
+$cred = Get-Credential -UserName 'DOMINIO\cuenta' -Message 'Cuenta de servicio AD'
+Get-ADDomain -Server <DC> -Credential $cred
+```
 
 ### Certificado
 Reemplazar `certs\provisioner.crt` y `provisioner.key` (PEM) por un certificado de la CA interna y reiniciar el servicio.
@@ -97,3 +127,5 @@ en la misma VM, porque `master.key` está protegida con DPAPI. Si se restaura en
 | Nadie puede ingresar | `provisioner-cli check`; si AD quedó mal, `provisioner-cli reset-ad` |
 | Falla "Crear usuario en AD" por permisos | Cuenta de servicio de AD en *Configuración* (delegación para crear y eliminar usuarios en la OU) |
 | "No se pudo conectar a SQL Server" | Driver ODBC instalado, servidor\instancia, firewall al 1433, login de la cuenta |
+| `IM002` / "no se encuentra el nombre del origen de datos" | Driver ODBC: dejar el campo vacío (usa el instalado) |
+| `Login failed for user ... (18456)` | El usuario SQL tiene que ser un login de SQL Server, no una cuenta de dominio (ver arriba) |
