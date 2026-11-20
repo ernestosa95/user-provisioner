@@ -7,6 +7,7 @@ Replica la logica de configure_users.ps1 para un unico usuario:
   3. ExtConfig.UserProfile_User  (perfil segun rol)
   4. ExtRadio.lsBusinessUnitUser (hasta 3 BU)
 """
+import re
 import uuid
 
 import pyodbc
@@ -31,11 +32,25 @@ class SqlSuitestensa(SuitestensaService):
     def cfg(self):
         return f"[{self.s.get('sql', 'db_config')}].[ExtConfig]"
 
+    def _driver(self):
+        configured = self.s.get("sql", "driver")
+        installed = pyodbc.drivers()
+        if configured:
+            if configured not in installed:
+                raise ServiceError(f"El driver ODBC '{configured}' no está instalado "
+                                   f"(instalados: {', '.join(installed) or 'ninguno'})")
+            return configured
+        found = sorted((d for d in installed if re.fullmatch(r"ODBC Driver \d+ for SQL Server", d)),
+                       key=lambda d: int(d.split()[2]))
+        if not found:
+            raise ServiceError("No hay ningún ODBC Driver for SQL Server instalado (17 o 18)")
+        return found[-1]
+
     def _conn_str(self):
         g = self.s.get
         if not g("sql", "server"):
             raise ServiceError("SQL no configurado (ver Configuración)")
-        parts = [f"DRIVER={{{g('sql', 'driver')}}}", f"SERVER={g('sql', 'server')}",
+        parts = [f"DRIVER={{{self._driver()}}}", f"SERVER={g('sql', 'server')}",
                  "TrustServerCertificate=yes"]
         if g("sql", "username"):
             pwd = (g("sql", "password") or "").replace("}", "}}")
