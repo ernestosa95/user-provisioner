@@ -8,11 +8,7 @@ class DemoDirectory(DirectoryService):
     def __init__(self, password: str = "demo"):
         # Todos los usuarios del AD simulado usan la misma clave (config [app] demo_password).
         self.password = password
-        self.users: dict[str, set[str]] = {"ebitadmin": {"Administrator"},
-                                           "admin.demo": {"Administrator"}}
-        self.groups = {"Requesting", "Technician", "Nurse", "Anaesthesiologist",
-                       "Performing", "Surgeon", "Sonographer", "Reporter",
-                       "Administrator", "Administrative"}
+        self.users: set[str] = {"ebitadmin", "admin.demo"}
 
     def test_connection(self):
         return "AD simulado (modo demo)"
@@ -23,21 +19,13 @@ class DemoDirectory(DirectoryService):
     def user_exists(self, username):
         return username.lower() in self.users
 
-    def group_exists(self, group):
-        return group in self.groups
-
     def create_user(self, spec, password):
         if self.user_exists(spec.username):
             raise ServiceError(f"El usuario {spec.username} ya existe en AD (demo)")
-        self.users[spec.username.lower()] = set()
-
-    def add_to_group(self, username, group):
-        if not self.group_exists(group):
-            raise ServiceError(f"El grupo AD '{group}' no existe (demo)")
-        self.users[username.lower()].add(group)
+        self.users.add(spec.username.lower())
 
     def delete_user(self, username):
-        self.users.pop(username.lower(), None)
+        self.users.discard(username.lower())
 
 
 class DemoSuitestensa(SuitestensaService):

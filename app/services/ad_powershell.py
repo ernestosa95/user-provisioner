@@ -57,17 +57,11 @@ class PowerShellDirectory(DirectoryService):
     def user_exists(self, username):
         return bool(self._run({"action": "user_exists", "username": username}))
 
-    def group_exists(self, group):
-        return bool(self._run({"action": "group_exists", "group": group}))
-
     def create_user(self, spec: UserSpec, password: str):
         self._run({"action": "create", "username": spec.username,
                    "first_name": spec.first_name, "last_name": spec.last_name,
                    "never_expires": bool(self.s.get("ad", "password_never_expires", True))},
                   password=password)
-
-    def add_to_group(self, username, group):
-        self._run({"action": "add_group", "username": username, "group": group})
 
     def delete_user(self, username):
         self._run({"action": "delete", "username": username})

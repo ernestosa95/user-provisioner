@@ -26,7 +26,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS admins(
   username TEXT PRIMARY KEY, added_by TEXT, added_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS role_map(
-  role TEXT PRIMARY KEY, profile TEXT NOT NULL, ad_group TEXT NOT NULL);
+  role TEXT PRIMARY KEY, profile TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS config(
   section TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(section, key));
 CREATE TABLE IF NOT EXISTS audit(
@@ -42,11 +42,17 @@ class Store:
             cols = [r["name"] for r in c.execute("PRAGMA table_info(admins)")]
             if "pw_hash" in cols:  # esquema viejo con claves locales: ya no se usa
                 c.execute("DROP TABLE admins")
+            rm_cols = [r["name"] for r in c.execute("PRAGMA table_info(role_map)")]
+            if "ad_group" in rm_cols:  # esquema viejo: el rol ya no lleva grupo AD
+                c.executescript(
+                    "ALTER TABLE role_map RENAME TO role_map_old;"
+                    "CREATE TABLE role_map(role TEXT PRIMARY KEY, profile TEXT NOT NULL);"
+                    "INSERT INTO role_map SELECT role, profile FROM role_map_old;"
+                    "DROP TABLE role_map_old;")
             c.executescript(SCHEMA)
             if c.execute("SELECT COUNT(*) FROM role_map").fetchone()[0] == 0:
                 c.executemany(
-                    "INSERT INTO role_map VALUES (?,?,?)",
-                    [(r, p, r) for r, p in DEFAULT_ROLE_MAP.items()],
+                    "INSERT INTO role_map VALUES (?,?)", list(DEFAULT_ROLE_MAP.items()),
                 )
 
     @contextmanager
@@ -82,14 +88,13 @@ class Store:
     # --- mapeo de roles ----------------------------------------------
     def role_map(self) -> dict:
         with self._c() as c:
-            return {r["role"]: {"profile": r["profile"], "ad_group": r["ad_group"]}
+            return {r["role"]: {"profile": r["profile"]}
                     for r in c.execute("SELECT * FROM role_map ORDER BY role")}
 
-    def set_role_map(self, role: str, profile: str, ad_group: str):
+    def set_role_map(self, role: str, profile: str):
         with self._c() as c:
-            c.execute("INSERT INTO role_map VALUES (?,?,?) ON CONFLICT(role) "
-                      "DO UPDATE SET profile=excluded.profile, ad_group=excluded.ad_group",
-                      (role, profile, ad_group))
+            c.execute("INSERT INTO role_map VALUES (?,?) ON CONFLICT(role) "
+                      "DO UPDATE SET profile=excluded.profile", (role, profile))
 
     def delete_role_map(self, role: str):
         with self._c() as c:

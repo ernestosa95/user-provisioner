@@ -35,7 +35,6 @@ try {
         $common.Credential = New-Object System.Management.Automation.PSCredential($env:PROV_SVC_USER, $sec)
     }
     $u = if ($p.username) { ([string]$p.username).Replace("'", "''") } else { '' }
-    $g = if ($p.group) { ([string]$p.group).Replace("'", "''") } else { '' }
     switch ($p.action) {
         'ping' {
             $dom = Get-ADDomain @common
@@ -44,9 +43,6 @@ try {
         }
         'user_exists' {
             $result = [bool](Get-ADUser -Filter "SamAccountName -eq '$u'" @common)
-        }
-        'group_exists' {
-            $result = [bool](Get-ADGroup -Filter "Name -eq '$g'" @common)
         }
         'create' {
             $pw = ConvertTo-SecureString $env:PROV_PASSWORD -AsPlainText -Force
@@ -59,13 +55,6 @@ try {
                 -PasswordNeverExpires ([bool]$p.never_expires) -ChangePasswordAtLogon $false `
                 -Enabled $true
             $result = 'created'
-        }
-        'add_group' {
-            # Mismo criterio de busqueda que group_exists (por Name).
-            $grp = Get-ADGroup -Filter "Name -eq '$g'" @common
-            if (-not $grp) { throw "El grupo '$($p.group)' no existe" }
-            Add-ADGroupMember @common -Identity $grp -Members $p.username
-            $result = 'added'
         }
         'delete' {
             Remove-ADUser @common -Identity $p.username -Confirm:$false

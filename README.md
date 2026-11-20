@@ -7,16 +7,15 @@ Reemplaza el flujo manual de `Create_AD_Groups`, `Import_Users_to_AD`,
 
 ## Flujo del alta
 1. Valida los datos (usuario, prefijo, rol, BU) contra la base del sitio.
-2. Chequea que el usuario no exista en AD ni en Suitestensa y que el grupo AD exista.
+2. Chequea que el usuario no exista en AD ni en Suitestensa.
 3. Crea el usuario en AD (clave genérica del sitio, sin expiración, sin cambio obligatorio).
-4. Lo agrega al grupo AD del rol.
-5. Inserta en Suitestensa **en una sola transacción**: `ExtConfig.User`, `ExtRadio.tbUser`,
+4. Inserta en Suitestensa **en una sola transacción**: `ExtConfig.User`, `ExtRadio.tbUser`,
    `UserProfile_User` y `lsBusinessUnitUser`.
-6. Si falla el paso 5, hace rollback de SQL y elimina el usuario de AD que acaba de crear.
-7. Todo queda en la auditoría (sin contraseñas).
+5. Si falla el paso 4, hace rollback de SQL y elimina el usuario de AD que acaba de crear.
+6. Todo queda en la auditoría (sin contraseñas).
 
-Roles, prefijos y BU se leen de la BD del sitio. El mapeo **rol → perfil → grupo AD**
-se edita en la pantalla *Roles* (valores iniciales tomados de `configure_users.ps1`).
+Roles, prefijos y BU se leen de la BD del sitio. En AD solo se crea el usuario (sin grupos):
+rol, perfil y BU viven en Suitestensa. El mapeo **rol → perfil** se edita en la pantalla *Roles* (valores iniciales tomados de `configure_users.ps1`).
 
 ## Probar en modo demo (sin AD ni SQL)
 ```bash

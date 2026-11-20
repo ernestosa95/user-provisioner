@@ -201,10 +201,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/roles", dependencies=[Depends(check_csrf)])
     def roles_save(request: Request, role: str = Form(...), profile: str = Form(...),
-                   ad_group: str = Form(...), u=Depends(superuser)):
-        app.state.store.set_role_map(role.strip(), profile.strip(), ad_group.strip())
-        app.state.store.log(u["username"], "role_map", role, True,
-                            {"profile": profile, "ad_group": ad_group})
+                   u=Depends(superuser)):
+        app.state.store.set_role_map(role.strip(), profile.strip())
+        app.state.store.log(u["username"], "role_map", role, True, {"profile": profile})
         return RedirectResponse("/roles", 303)
 
     @app.post("/roles/delete", dependencies=[Depends(check_csrf)])

@@ -95,7 +95,7 @@ def test_create_ok(client):
     login(client)
     r = client.post("/users", data={**FORM, "csrf": csrf(client, "/")})
     assert "Usuario creado: ana.lopez" in r.text
-    assert "Technician" in client.app_.state.ad.users["ana.lopez"]
+    assert "ana.lopez" in client.app_.state.ad.users
     assert client.app_.state.db.users["ana.lopez"]["profile"] == "T_S_R_M"
 
 
@@ -137,7 +137,7 @@ def test_audit_has_no_password(client):
 # --- orquestacion: errores parciales -------------------------------------
 SPEC = UserSpec(username="ana.lopez", first_name="Ana", last_name="Lopez", prefix="DR",
                 role="Technician", business_units=["RADIO 1"])
-ROLES = {"Technician": {"profile": "T_S_R_M", "ad_group": "Technician"}}
+ROLES = {"Technician": {"profile": "T_S_R_M"}}
 
 
 def test_partial_ad_create_is_rolled_back():

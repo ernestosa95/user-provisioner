@@ -1,16 +1,15 @@
 {% extends "base.html" %}{% block body %}
-<div class="card"><h1>Roles → perfil Suitestensa → grupo AD</h1>
-<p class="mut">Los roles se leen de la base (lsRole). El perfil y el grupo AD de cada rol se definen aquí por sitio.</p>
+<div class="card"><h1>Roles → perfil Suitestensa</h1>
+<p class="mut">Los roles se leen de la base (lsRole). El perfil de cada rol se define aquí por sitio.</p>
 {% if err %}<p class="err">{{ err }}</p>{% endif %}
-<table><tr><th>Rol</th><th>Perfil</th><th>Grupo AD</th><th></th></tr>
+<table><tr><th>Rol</th><th>Perfil</th><th></th></tr>
 {% for role, m in rm.items() %}<tr><td>{{ role }}{% if db_roles and role not in db_roles %} <span class="err">(no está en lsRole)</span>{% endif %}</td>
-<td>{{ m.profile }}{% if profiles and m.profile not in profiles %} <span class="err">(no existe)</span>{% endif %}</td><td>{{ m.ad_group }}</td>
+<td>{{ m.profile }}{% if profiles and m.profile not in profiles %} <span class="err">(no existe)</span>{% endif %}</td>
 <td>{% if user.is_super %}<form method="post" action="/roles/delete" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="role" value="{{ role }}"><button class="link">Quitar</button></form>{% endif %}</td></tr>{% endfor %}
 </table>
 {% for r in db_roles if r not in rm %}<p class="err">El rol «{{ r }}» está en la base pero no tiene perfil configurado.</p>{% endfor %}</div>
 {% if user.is_super %}<div class="card"><h1>Agregar / modificar</h1>
 <form method="post" action="/roles"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="grid">
 <div><label>Rol</label><input name="role" list="dr" required><datalist id="dr">{% for r in db_roles %}<option>{{ r }}</option>{% endfor %}</datalist></div>
-<div><label>Perfil Suitestensa</label><input name="profile" list="dp" required><datalist id="dp">{% for p in profiles %}<option>{{ p }}</option>{% endfor %}</datalist></div>
-<div><label>Grupo AD</label><input name="ad_group" required></div></div><p><button>Guardar</button></p></form></div>{% endif %}
+<div><label>Perfil Suitestensa</label><input name="profile" list="dp" required><datalist id="dp">{% for p in profiles %}<option>{{ p }}</option>{% endfor %}</datalist></div></div><p><button>Guardar</button></p></form></div>{% endif %}
 {% endblock %}

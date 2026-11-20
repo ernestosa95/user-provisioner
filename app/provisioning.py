@@ -1,4 +1,4 @@
-"""Orquestacion del alta: validar -> AD -> grupo -> SQL (con rollback de AD)."""
+"""Orquestacion del alta: validar -> AD -> SQL (con rollback de AD)."""
 import re
 from dataclasses import dataclass
 
@@ -26,7 +26,7 @@ def validate(spec: UserSpec, db: SuitestensaService, role_map: dict) -> list[str
     if spec.role not in db.list_roles():
         errs.append("Rol invalido.")
     elif spec.role not in role_map:
-        errs.append(f"El rol '{spec.role}' no tiene perfil/grupo AD configurado (ver Roles).")
+        errs.append(f"El rol '{spec.role}' no tiene perfil configurado (ver Roles).")
     valid_bu = set(db.list_business_units())
     if not spec.business_units:
         errs.append("Seleccione al menos una Business Unit.")
@@ -55,17 +55,12 @@ def provision(spec: UserSpec, ad: DirectoryService, db: SuitestensaService,
             raise ServiceError(f"'{spec.username}' ya existe en AD")
         if db.user_exists(spec.username):
             raise ServiceError(f"'{spec.username}' ya existe en Suitestensa")
-        if not ad.group_exists(m["ad_group"]):
-            raise ServiceError(f"El grupo AD '{m['ad_group']}' no existe")
-        steps.append(Step("Chequeo de duplicados y grupo", True))
+        steps.append(Step("Chequeo de duplicados", True))
 
         ad_attempted = True
         ad.create_user(spec, password)
         ad_created = True
         steps.append(Step("Usuario creado en AD", True))
-
-        ad.add_to_group(spec.username, m["ad_group"])
-        steps.append(Step(f"Agregado al grupo AD '{m['ad_group']}'", True))
 
         guid = db.create_user(spec, m["profile"])
         steps.append(Step(f"Insertado en Suitestensa (perfil {m['profile']})", True, guid))

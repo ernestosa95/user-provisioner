@@ -58,12 +58,12 @@ Qué hace el instalador:
    **configuración inicial**. Esta pantalla solo responde a accesos desde la propia VM.
 2. Cargar los datos de AD (dominio, servidor, OU, clave genérica y, si hace falta, la cuenta de servicio) y de SQL.
 3. Ingresar como `ebitadmin` con su clave de dominio. En *Configuración*, usar **Probar AD** y **Probar SQL**.
-4. En *Roles*, revisar el perfil y el grupo AD de cada rol. En *Administradores*, habilitar a los demás admins.
+4. En *Roles*, revisar el perfil de cada rol. En *Administradores*, habilitar a los demás admins.
 
 ### Con qué cuenta se conecta a AD y SQL
 El servicio corre como **SYSTEM**. Con esa cuenta:
 - **AD:** validar el login y leer funcionan con la cuenta de equipo. Para **crear usuarios** hay que cargar una
-  **cuenta de servicio** en *Configuración* con delegación sobre la OU y los grupos de rol.
+  **cuenta de servicio** en *Configuración* con delegación para crear y eliminar usuarios en la OU.
   Otra opción es cambiar la cuenta con la que corre el servicio en `services.msc`, y darle control total sobre `C:\ProgramData\UserProvisioner`.
 - **SQL:** con autenticación de Windows se conecta como la cuenta de equipo (`DOMINIO\VM$`). Hay dos opciones:
   - Usar un usuario SQL, que se carga en *Configuración*.
@@ -95,5 +95,5 @@ en la misma VM, porque `master.key` está protegida con DPAPI. Si se restaura en
 | El servicio no arranca | `C:\ProgramData\UserProvisioner\logs\UserProvisioner.err.log` |
 | "AD no está configurado" al entrar desde otra PC | Hacer la configuración inicial desde la propia VM (`https://localhost:<puerto>/`) |
 | Nadie puede ingresar | `provisioner-cli check`; si AD quedó mal, `provisioner-cli reset-ad` |
-| Falla "Crear usuario en AD" por permisos | Cuenta de servicio de AD en *Configuración* (delegación sobre la OU y los grupos) |
+| Falla "Crear usuario en AD" por permisos | Cuenta de servicio de AD en *Configuración* (delegación para crear y eliminar usuarios en la OU) |
 | "No se pudo conectar a SQL Server" | Driver ODBC instalado, servidor\instancia, firewall al 1433, login de la cuenta |
