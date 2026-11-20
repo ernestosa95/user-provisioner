@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h1>Nuevo usuario</h1>
+{% if db_error %}<p class="err">No se pudo leer Suitestensa: {{ db_error }}</p>{% endif %}
+{% for e in errors %}<p class="{{ 'ok' if e.ok else 'err' }}">{{ '✔' if e.ok else '✖' }} {{ e.name }}{% if e.detail %}: {{ e.detail }}{% endif %}</p>{% endfor %}
+<form method="post" action="/users"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="grid">
+<div><label>Nombre</label><input name="first_name" required value="{{ values.first_name }}"></div>
+<div><label>Apellido</label><input name="last_name" required value="{{ values.last_name }}"></div>
+<div><label>Usuario de dominio</label><input name="username" required pattern="[A-Za-z0-9._\-]{3,20}" value="{{ values.username }}" placeholder="nombre.apellido"></div>
+<div><label>Prefijo</label><select name="prefix" required><option value="">—</option>
+{% for p in prefixes %}<option {{ 'selected' if p == values.prefix }}>{{ p }}</option>{% endfor %}</select></div>
+<div><label>Rol</label><select name="role" required><option value="">—</option>
+{% for r, mapped in roles %}<option value="{{ r }}" {{ 'selected' if r == values.role }} {{ 'disabled' if not mapped }}>{{ r }}{{ '' if mapped else ' (sin perfil configurado)' }}</option>{% endfor %}</select></div>
+</div>
+<label>Business Units (máx. 3)</label>
+<div class="bus">{% for b in bus %}<div class="chk"><input type="checkbox" id="b{{ loop.index }}" name="bu" value="{{ b }}" {{ 'checked' if b in values.bu|default([]) }}><label for="b{{ loop.index }}">{{ b }}</label></div>{% endfor %}</div>
+<p><button>Crear usuario</button></p></form></div>{% endblock %}

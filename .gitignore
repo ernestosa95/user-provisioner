@@ -1,0 +1,9 @@
+.venv/
+data/
+config.toml
+__pycache__/
+*.pyc
+installer/build/
+installer/cache/
+installer/dist/
+.pytest_cache/

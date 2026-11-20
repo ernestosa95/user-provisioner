@@ -1,0 +1,12 @@
+# Copiar a config.toml y ajustar por instalacion. Sin secretos:
+# la conexion a AD y SQL (y sus claves, cifradas) se configura desde
+# la interfaz, pantalla Configuracion (solo ebitadmin).
+
+[app]
+mode = "demo"              # demo = AD y SQL simulados | real = conecta al sitio
+site_name = "HOSPITAL-DEMO"
+data_dir = "data"          # base local (admins, mapeo de roles, auditoria)
+rollback_ad_on_sql_failure = true
+https_only = false         # true en produccion (detras de HTTPS)
+demo_password = "demo"     # solo modo demo: clave de ebitadmin y del AD simulado
+powershell = "powershell.exe"

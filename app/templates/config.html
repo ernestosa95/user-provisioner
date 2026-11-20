@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block body %}
+{% if msg %}<div class="card msg-{{ msg[0] }}">{{ msg[1] }}</div>{% endif %}
+{% for e in errors %}<div class="card msg-err">{{ e }}</div>{% endfor %}
+<div class="card"><h1>{{ 'Configuración inicial' if bootstrap else 'Configuración del sitio' }}</h1>
+{% if bootstrap %}<p class="mut">AD todavía no está configurado. Esta pantalla solo se ve desde la propia VM.
+Cargue al menos el dominio de AD; después ingrese como <strong>ebitadmin</strong> con su clave de dominio.</p>{% endif %}
+<p class="mut">Las claves se guardan cifradas y nunca se vuelven a mostrar. Deje el campo vacío para conservar la clave actual.</p>
+<form method="post" action="{{ '/bootstrap' if bootstrap else '/config' }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% for sec, title in [('ad', 'Active Directory'), ('sql', 'Base de datos (SQL Server)')] %}
+<h2>{{ title }}</h2><div class="grid">
+{% for f in fields if f.section == sec %}{% set name = f.section ~ '_' ~ f.key %}
+{% if f.kind == 'bool' %}<div class="chk"><input type="checkbox" id="{{ name }}" name="{{ name }}" value="1" {{ 'checked' if values[(f.section, f.key)] }}><label for="{{ name }}">{{ f.label }}</label></div>
+{% elif f.kind == 'secret' %}<div><label for="{{ name }}">{{ f.label }}</label>
+<input type="password" id="{{ name }}" name="{{ name }}" autocomplete="new-password" placeholder="{{ '•••••• guardada' if saved[(f.section, f.key)] else 'sin cargar' }}">
+{% if saved[(f.section, f.key)] %}<div class="chk"><input type="checkbox" id="clear_{{ name }}" name="clear_{{ name }}" value="1"><label for="clear_{{ name }}" class="mut">Borrar la clave guardada</label></div>{% endif %}</div>
+{% else %}<div><label for="{{ name }}">{{ f.label }}</label><input id="{{ name }}" name="{{ name }}" value="{{ values[(f.section, f.key)] }}">
+{% if f.help %}<p class="mut">{{ f.help }}</p>{% endif %}</div>{% endif %}
+{% endfor %}</div>{% endfor %}
+<p><button>Guardar</button></p></form></div>
+{% if not bootstrap %}<div class="card"><h1>Probar conexión</h1><p class="mut">Usa la configuración guardada.</p>
+<form method="post" action="/config/test" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="target" value="ad"><button class="sec">Probar AD</button></form>
+<form method="post" action="/config/test" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="target" value="sql"><button class="sec">Probar SQL</button></form></div>{% endif %}
+{% endblock %}

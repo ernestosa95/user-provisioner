@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block body %}
+{% if msg %}<div class="card msg-{{ msg[0] }}">{{ msg[1] }}</div>{% endif %}
+<div class="card"><h1>Administradores de la app</h1>
+<p class="mut">Ingresan con su usuario de AD. <strong>{{ superuser_name }}</strong> es el administrador principal (fijo).</p>
+<table><tr><th>Usuario</th><th>Agregado por</th><th>Fecha (UTC)</th><th></th></tr>
+{% for a in admins %}<tr><td>{{ a.username }}</td><td>{{ a.added_by or '' }}</td><td class="mut">{{ a.added_at }}</td><td>
+<form method="post" action="/admins/remove" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="username" value="{{ a.username }}"><button class="link">Quitar</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="mut">Todavía no hay otros administradores.</td></tr>{% endfor %}</table></div>
+<div class="card"><h1>Agregar administrador</h1><form method="post" action="/admins"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Usuario de AD</label><input name="username" required placeholder="nombre.apellido">
+<p class="mut">Debe existir en el dominio.</p><p><button>Agregar</button></p></form></div>
+{% endblock %}

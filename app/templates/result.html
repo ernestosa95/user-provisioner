@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block body %}
+<div class="card msg-ok"><h1>Usuario creado: {{ spec.username }}</h1>
+<table>{% for s in steps %}<tr><td class="{{ 'ok' if s.ok else 'err' }}">{{ '✔' if s.ok else '✖' }}</td><td>{{ s.name }}</td><td class="mut">{{ s.detail }}</td></tr>{% endfor %}</table>
+<p class="mut">Comunique al usuario la clave genérica del sitio.</p>
+<p><a href="/"><button>Crear otro</button></a></p></div>{% endblock %}

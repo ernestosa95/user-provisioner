@@ -1,0 +1,23 @@
+# Alta de usuarios (AD + Suitestensa)
+# Archivo: C:\ProgramData\UserProvisioner\config.toml (solo Administradores y SYSTEM pueden leerlo)
+# Despues de modificarlo reiniciar el servicio "Alta de Usuarios (AD + Suitestensa)".
+#
+# Este archivo NO lleva secretos. La conexion a AD y SQL (y sus claves, cifradas)
+# se configura desde la interfaz: Configuracion (solo ebitadmin).
+
+[app]
+mode = "{{MODE}}"                # real = conecta al sitio | demo = AD y SQL simulados (solo pruebas)
+site_name = "{{SITE_NAME}}"
+data_dir = 'C:\ProgramData\UserProvisioner\data'
+rollback_ad_on_sql_failure = true
+https_only = {{HTTPS_ONLY}}           # cookies solo por HTTPS
+demo_password = "demo"         # solo modo demo: clave de ebitadmin y del AD simulado
+powershell = "powershell.exe"
+
+[server]
+host = "0.0.0.0"
+port = {{PORT}}
+# Si no existen, el instalador genera un certificado autofirmado.
+# Reemplazarlos por un certificado de la CA interna (PEM) con el mismo nombre.
+tls_cert = 'C:\ProgramData\UserProvisioner\certs\provisioner.crt'
+tls_key = 'C:\ProgramData\UserProvisioner\certs\provisioner.key'

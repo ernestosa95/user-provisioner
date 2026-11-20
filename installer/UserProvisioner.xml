@@ -1,0 +1,24 @@
+<!-- Configuración del servicio de Windows (WinSW 2.x). -->
+<service>
+  <id>UserProvisioner</id>
+  <name>Alta de Usuarios (AD + Suitestensa)</name>
+  <description>Alta de usuarios en Active Directory y Suitestensa.</description>
+  <executable>%BASE%\python\python.exe</executable>
+  <arguments>-m app.cli serve</arguments>
+  <workingdirectory>%BASE%\provisioner</workingdirectory>
+  <env name="PROV_CONFIG" value="%ProgramData%\UserProvisioner\config.toml" />
+  <env name="PYTHONUTF8" value="1" />
+  <env name="PYTHONUNBUFFERED" value="1" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <stoptimeout>15 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%ProgramData%\UserProvisioner\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>10</keepFiles>
+  </log>
+</service>
