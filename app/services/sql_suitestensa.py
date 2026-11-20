@@ -35,11 +35,10 @@ class SqlSuitestensa(SuitestensaService):
     def _driver(self):
         configured = self.s.get("sql", "driver")
         installed = pyodbc.drivers()
-        if configured:
-            if configured not in installed:
-                raise ServiceError(f"El driver ODBC '{configured}' no está instalado "
-                                   f"(instalados: {', '.join(installed) or 'ninguno'})")
+        if configured in installed:
             return configured
+        # Vacío, o un driver que ya no está (p. ej. el 17, default de versiones viejas):
+        # se usa el más nuevo instalado.
         found = sorted((d for d in installed if re.fullmatch(r"ODBC Driver \d+ for SQL Server", d)),
                        key=lambda d: int(d.split()[2]))
         if not found:
