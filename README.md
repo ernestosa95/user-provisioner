@@ -66,13 +66,14 @@ Si la configuración de AD queda mal y `ebitadmin` no puede ingresar, ejecutar e
 - `docs/extraer_esquemas.sql` — consulta para validar el esquema real.
 
 ## Pendiente / siguiente fase
-- **Prueba en el sitio de test (`suitestensa.local`, DC `ARP03DC0V`)** — en curso:
+- **Prueba en el sitio de test (`suitestensa.local`, DC `ARP03DC0V`)** — completa (2026-11-25):
   - Hecho: build e instalación en Windows, ODBC 18 y RSAT, conexión a AD con cuenta de servicio
     (`SUITESTENSA\ebitadmin`, OU `CN=Users,DC=suitestensa,DC=local`).
-  - Falta: un **login SQL** para la app (la PC de prueba no está en el dominio, ver
+  - Hecho: login SQL `svc_altas` (la PC de prueba no está en el dominio, ver
     [Con qué cuenta se conecta a AD y SQL](docs/instalacion-windows.md#con-qué-cuenta-se-conecta-a-ad-y-sql)).
-  - Falta: correr `docs/extraer_esquemas.sql` y ajustar los INSERT de `sql_suitestensa.py` antes de la primera alta.
-  - Falta: la primera alta de prueba (un rol cuyo perfil exista, p. ej. Technician o Nurse).
+  - Hecho: esquema validado con `docs/extraer_esquemas.sql`; los INSERT coinciden (sin cambios).
+  - Hecho: primera alta (`prueba.alta`, Technician → `T_S_R_M`), verificada en AD, en SQL y con login en Suitestensa.
+  - Hecho: rollback (perfil inexistente → falla SQL después de crear en AD → el usuario se elimina de AD).
 - Carga masiva desde la hoja `User` del Excel.
 - Firma digital (fuera de alcance: se inserta `EnableDigitalSign = 0`, sin código de firmante).
 - Campos que el script original dejaba vacíos (`ActiveDirectoryObjectGUID`, `ObjectSID`, Email).
