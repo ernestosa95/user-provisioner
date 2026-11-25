@@ -134,6 +134,51 @@ def test_audit_has_no_password(client):
     assert "Demo.Pass.01" not in text and ">demo<" not in text
 
 
+def test_existing_ad_user_blocked_without_flag(client):
+    login(client)
+    r = client.post("/users", data={**FORM, "username": "juan.perez", "csrf": csrf(client, "/")})
+    assert "ya existe en AD" in r.text and "Ya existe en AD" in r.text
+    assert "juan.perez" not in client.app_.state.db.users
+
+
+def test_existing_ad_user_only_inserted_in_sql(client):
+    login(client)
+    form = {**FORM, "username": "juan.perez", "first_name": "", "last_name": "", "existing_ad": "1"}
+    r = client.post("/users", data={**form, "csrf": csrf(client, "/")})
+    assert "Usuario creado: juan.perez" in r.text and "clave de dominio actual" in r.text
+    row = client.app_.state.db.users["juan.perez"]
+    assert (row["spec"].first_name, row["spec"].last_name) == ("Juan", "Perez")  # tomados de AD
+    assert row["ad_user"].email == "juan.perez@demo.local"
+
+
+def test_existing_flag_but_not_in_ad(client):
+    login(client)
+    r = client.post("/users", data={**FORM, "existing_ad": "1", "csrf": csrf(client, "/")})
+    assert "no existe en AD" in r.text
+    assert "ana.lopez" not in client.app_.state.ad.users  # no lo crea
+
+
+def test_existing_sql_failure_never_deletes_from_ad(client):
+    login(client)
+    client.app_.state.db.fail_next = True
+    form = {**FORM, "username": "juan.perez", "existing_ad": "1"}
+    r = client.post("/users", data={**form, "csrf": csrf(client, "/")})
+    assert "Fallo simulado" in r.text and "Rollback" not in r.text
+    assert "juan.perez" in client.app_.state.ad.users
+
+
+def test_external_ad_never_creates(client):
+    login(client)
+    save_cfg(client, ad_external="1")
+    r = client.get("/")
+    assert "AD ajeno" in r.text and 'name="existing_ad"' not in r.text
+    r = client.post("/users", data={**FORM, "csrf": csrf(client, "/")})  # sin marcar nada
+    assert "no existe en AD" in r.text and "Desmarque" not in r.text
+    assert "ana.lopez" not in client.app_.state.ad.users
+    r = client.post("/users", data={**FORM, "username": "juan.perez", "csrf": csrf(client, "/")})
+    assert "Usuario creado: juan.perez" in r.text
+
+
 # --- orquestacion: errores parciales -------------------------------------
 SPEC = UserSpec(username="ana.lopez", first_name="Ana", last_name="Lopez", prefix="DR",
                 role="Technician", business_units=["RADIO 1"])
@@ -278,3 +323,84 @@ tls_key = '{tmp_path / "certs" / "c.key"}'
     assert (tmp_path / "data" / "app.db").exists() and (tmp_path / "data" / "master.key").exists()
     assert (tmp_path / "certs" / "c.crt").exists()
     assert cli.main(["--config", str(cfg), "check"]) == 1  # real sin configurar
+
+
+# --- carga masiva ------------------------------------------------------------
+def make_xlsx(rows):
+    """Como la hoja User de ConfigurationRIS.xlsx: fila 1 descriptiva, fila 2 encabezados tecnicos."""
+    import io
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.active.title = "Manual"
+    ws = wb.create_sheet("User")
+    ws.append(["Prefix user (mandatory)", "Surname User (Mandatory)", "Name User (Mandatory)"])
+    ws.append(["IdPrefix", "Surname", "Name", "IdRole", "EnableVewReport", "EnableDigitalSign",
+               "UserName", "SignatoryCode", "Externalcode", "BusinessUnit", "BusinessUnit2",
+               "BusinessUnit3"])
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+XLSX_ROWS = [
+    ["DR", "Rossi", "Mario", "Technician", 1, 1, "mario.rossi", "TST", "U1", "RADIO 1", "RADIOLOGIA XYZ", None],
+    ["TEC", "Amico ", "Ciccio", "Nurse", 1, 0, "ciccio.amico", None, None, "RADIO 1", None, None],
+    ["MISS", "Compare", "Pippo", "Administrative", 1, 0, 12343, None, None, "RADIO 1", None, None],
+    ["DR", "Perez", "Juan", "Technician", 1, 0, "juan.perez", None, None, "RADIO 1", None, None],
+    ["DR", "Otro", "Mario", "Technician", 1, 0, "mario.rossi", None, None, "RADIO 1", None, None],
+    [None] * 12,
+]
+
+
+def upload(c, rows=XLSX_ROWS, **extra):
+    return c.post("/bulk/preview", data={"csrf": csrf(c, "/bulk"), **extra},
+                  files={"file": ("ConfigurationRIS.xlsx", make_xlsx(rows))})
+
+
+def wait_job(c, r):
+    import time
+    job = c.app_.state.bulk.jobs[r.url.path.rsplit("/", 1)[-1]]
+    for _ in range(200):
+        if job.finished:
+            return job
+        time.sleep(0.02)
+    raise AssertionError("la carga no termino")
+
+
+def test_bulk_preview_marks_errors_and_creates_nothing(client):
+    login(client)
+    r = upload(client)
+    t = r.text
+    assert "5 usuarios" in t and "2 listos" in t
+    assert "Prefijo invalido" in t                       # MISS
+    assert "Ya existe en AD" in t                          # juan.perez sin marcar
+    assert "repetido en el archivo (fila 3)" in t          # mario.rossi dos veces
+    assert "Firma digital" in t
+    assert "mario.rossi" not in client.app_.state.ad.users  # la vista previa no toca nada
+
+
+def test_bulk_run_processes_valid_rows(client):
+    login(client)
+    r = upload(client, use_existing="1")
+    token = re.search(r'name="token" value="([^"]+)"', r.text).group(1)
+    r = client.post("/bulk/run", data={"csrf": csrf(client, "/bulk"), "token": token})
+    job = wait_job(client, r)
+    assert job.ok_count == 3 and len(job.rows) == 3       # mario.rossi, ciccio.amico, juan.perez
+    db = client.app_.state.db.users
+    assert db["ciccio.amico"]["spec"].last_name == "Amico" and db["ciccio.amico"]["profile"] == "I_P"
+    assert db["juan.perez"]["ad_user"] is not None         # ya existia en AD: solo SQL
+    assert "ciccio.amico" in client.app_.state.ad.users
+    assert "Terminada" in client.get(r.url.path).text
+    assert "bulk_upload" in client.get("/audit").text
+    # el token se usa una sola vez
+    r = client.post("/bulk/run", data={"csrf": csrf(client, "/bulk"), "token": token})
+    assert "venció" in r.text
+
+
+def test_bulk_rejects_wrong_file(client):
+    login(client)
+    r = client.post("/bulk/preview", data={"csrf": csrf(client, "/bulk")},
+                    files={"file": ("x.xlsx", b"no es un excel")})
+    assert "No se pudo leer el Excel" in r.text

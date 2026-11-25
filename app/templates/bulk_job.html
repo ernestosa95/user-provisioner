@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block head %}{% if not job.finished %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block body %}
+<div class="card {{ 'msg-ok' if job.finished and job.ok_count == job.rows|length }}{{ ' msg-err' if job.finished and job.ok_count < job.rows|length }}">
+<h1>Carga masiva: {{ job.filename }}</h1>
+{% if job.finished %}<p>Terminada: <span class="ok">{{ job.ok_count }} creados</span>{% if job.ok_count < job.rows|length %}, <span class="err">{{ job.rows|length - job.ok_count }} con error</span>{% endif %} de {{ job.rows|length }}.</p>
+{% else %}<p>Procesando {{ job.results|length }} de {{ job.rows|length }}… (la página se actualiza sola; puede cerrarla, la carga sigue)</p>{% endif %}
+<table><tr><th>Fila</th><th>Usuario</th><th></th><th>Detalle</th></tr>
+{% for r, ok, steps in job.results %}<tr><td>{{ r.line }}</td><td>{{ r.spec.username }}</td><td class="{{ 'ok' if ok else 'err' }}">{{ '✔' if ok else '✖' }}</td>
+<td class="mut">{% if ok %}{{ 'ya existía en AD; ' if r.spec.existing_ad }}{{ steps[-1].name }}{% else %}{% for s in steps if not s.ok or 'Rollback' in s.name %}<div class="{{ 'ok' if s.ok else 'err' }}">{{ s.name }}{% if s.detail %}: {{ s.detail }}{% endif %}</div>{% endfor %}{% endif %}</td></tr>{% endfor %}</table>
+{% if job.finished %}<p><a href="/bulk"><button>Otra carga</button></a></p>{% endif %}</div>{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h1>Carga masiva</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if running %}<p class="err">Hay una carga en curso: <a href="/bulk/job/{{ running.id }}">ver avance</a>.</p>{% endif %}
+<p class="mut">Suba el Excel de configuración (<strong>ConfigurationRIS.xlsx</strong>): se lee la hoja <strong>User</strong>
+(Prefix, Surname, Name, Role, UserName y hasta 3 Business Units). Primero se muestra una vista previa; no se crea nada hasta confirmar.</p>
+<form method="post" action="/bulk/preview" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="file">Archivo Excel</label><input type="file" id="file" name="file" accept=".xlsx" required>
+{% if ad_external %}<p class="mut">AD ajeno (solo lectura): todos los usuarios tienen que existir en AD.</p>
+{% else %}<div class="chk"><input type="checkbox" id="use_existing" name="use_existing" value="1"><label for="use_existing">Si un usuario ya existe en AD, usar el existente (solo darlo de alta en Suitestensa)</label></div>{% endif %}
+<p><button>Ver vista previa</button></p></form></div>{% endblock %}

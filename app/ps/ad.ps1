@@ -4,6 +4,10 @@
 #   PROV_SVC_USER / PROV_SVC_PASSWORD = opcional, cuenta de servicio
 # Salida: una linea JSON {"ok":bool,"result":...,"error":...} en UTF-8
 $ErrorActionPreference = 'Stop'
+function AdUserInfo($x) {
+    @{ first_name = $x.GivenName; last_name = $x.Surname; email = $x.mail
+       guid = $x.ObjectGUID.ToString(); sid = $x.SID.Value; enabled = [bool]$x.Enabled }
+}
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 try {
     $p = $env:PROV_PAYLOAD | ConvertFrom-Json
@@ -44,6 +48,18 @@ try {
         'user_exists' {
             $result = [bool](Get-ADUser -Filter "SamAccountName -eq '$u'" @common)
         }
+        'get_user' {
+            $x = Get-ADUser -Filter "SamAccountName -eq '$u'" -Properties mail @common
+            if ($x) { $result = AdUserInfo $x }
+        }
+        'find_users' {
+            $result = @{}
+            foreach ($n in @($p.usernames)) {
+                $s = ([string]$n).Replace("'", "''")
+                $x = Get-ADUser -Filter "SamAccountName -eq '$s'" -Properties mail @common
+                if ($x) { $result[[string]$n] = AdUserInfo $x }
+            }
+        }
         'create' {
             $pw = ConvertTo-SecureString $env:PROV_PASSWORD -AsPlainText -Force
             $display = "$($p.first_name) $($p.last_name)"
@@ -62,7 +78,7 @@ try {
         }
         default { throw "Accion desconocida: $($p.action)" }
     }
-    @{ ok = $true; result = $result } | ConvertTo-Json -Compress
+    @{ ok = $true; result = $result } | ConvertTo-Json -Compress -Depth 5
 } catch {
     @{ ok = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress
     exit 1

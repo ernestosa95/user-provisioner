@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h1>Vista previa: {{ filename }}</h1>
+<p>{{ rows|length }} usuarios en el archivo: <span class="ok">{{ valid }} listos</span>{% if valid < rows|length %}, <span class="err">{{ rows|length - valid }} con errores (no se van a procesar)</span>{% endif %}.</p>
+<table><tr><th>Fila</th><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Prefijo</th><th>BU</th><th>AD</th><th>Estado</th></tr>
+{% for r in rows %}<tr><td>{{ r.line }}</td><td>{{ r.spec.username }}</td><td>{{ r.spec.first_name }} {{ r.spec.last_name }}</td>
+<td>{{ r.spec.role }}</td><td>{{ r.spec.prefix }}</td><td>{{ r.spec.business_units|join(', ') }}</td>
+<td>{{ {'nuevo': 'se crea', 'existe': 'ya existe (se usa)'}.get(r.ad, '') }}</td>
+<td>{% if r.ok %}<span class="ok">✔</span>{% endif %}{% for e in r.errors %}<div class="err">✖ {{ e }}</div>{% endfor %}{% for w in r.warnings %}<div class="mut">⚠ {{ w }}</div>{% endfor %}</td></tr>{% endfor %}</table>
+{% if valid %}<form method="post" action="/bulk/run"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="token" value="{{ token }}">
+<p><button>Procesar {{ valid }} usuario{{ 's' if valid != 1 }}</button> <a href="/bulk">Cancelar</a></p></form>
+{% else %}<p><a href="/bulk">Volver</a></p>{% endif %}</div>{% endblock %}

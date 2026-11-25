@@ -1,14 +1,15 @@
 """Servicios simulados (datos ficticios) para desarrollar sin AD ni SQL."""
 import uuid
 
-from .base import DirectoryService, ServiceError, SuitestensaService, UserSpec
+from .base import AdUser, DirectoryService, ServiceError, SuitestensaService, UserSpec
 
 
 class DemoDirectory(DirectoryService):
     def __init__(self, password: str = "demo"):
         # Todos los usuarios del AD simulado usan la misma clave (config [app] demo_password).
         self.password = password
-        self.users: set[str] = {"ebitadmin", "admin.demo"}
+        # juan.perez: usuario que ya existe en AD (para probar el alta de existentes)
+        self.users: set[str] = {"ebitadmin", "admin.demo", "juan.perez"}
 
     def test_connection(self):
         return "AD simulado (modo demo)"
@@ -18,6 +19,15 @@ class DemoDirectory(DirectoryService):
 
     def user_exists(self, username):
         return username.lower() in self.users
+
+    def get_user(self, username):
+        if not self.user_exists(username):
+            return None
+        first, _, last = username.lower().partition(".")
+        return AdUser(first_name=first.title(), last_name=last.title(),
+                      email=f"{username.lower()}@demo.local",
+                      object_guid=str(uuid.uuid5(uuid.NAMESPACE_DNS, username.lower())),
+                      sid="S-1-5-21-0-0-0-1001")
 
     def create_user(self, spec, password):
         if self.user_exists(spec.username):
@@ -55,11 +65,11 @@ class DemoSuitestensa(SuitestensaService):
     def user_exists(self, username):
         return username.lower() in self.users
 
-    def create_user(self, spec, profile):
+    def create_user(self, spec, profile, ad_user=None):
         if self.fail_next:
             self.fail_next = False
             raise ServiceError("Fallo simulado en SQL (demo)")
         guid = str(uuid.uuid4())
         self.users[spec.username.lower()] = {"guid": guid, "profile": profile,
-                                             "spec": spec}
+                                             "spec": spec, "ad_user": ad_user}
         return guid

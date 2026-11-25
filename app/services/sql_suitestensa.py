@@ -12,7 +12,7 @@ import uuid
 
 import pyodbc
 
-from .base import ServiceError, SuitestensaService, UserSpec
+from .base import AdUser, ServiceError, SuitestensaService, UserSpec
 
 ZERO_GUID = "00000000-0000-0000-0000-000000000000"
 
@@ -102,7 +102,7 @@ class SqlSuitestensa(SuitestensaService):
         return bool(a or b)
 
     # --- alta --------------------------------------------------------------
-    def create_user(self, spec: UserSpec, profile: str) -> str:
+    def create_user(self, spec: UserSpec, profile: str, ad_user: AdUser | None = None) -> str:
         con = self._connect(autocommit=False)
         try:
             cur = con.cursor()
@@ -134,13 +134,15 @@ class SqlSuitestensa(SuitestensaService):
 
             guid = str(uuid.uuid4())
             full = f"{spec.first_name} {spec.last_name}"
+            a = ad_user or AdUser()  # usuario creado por la app: como el script original, vacios
             cur.execute(
                 f"""INSERT INTO {self.cfg}.[User]
                 (guid,UserName,Domain_GUID,name,surname,enabled,Description,descname,taxcode,
                  PrincipalName,ActiveDirectoryObjectGUID,BirthDate,Email,ObjectSID,Sex,Status,TelephoneNumbers)
-                VALUES (?,?,?,?,?,1,'Created from web app',?,'',?,'','','','','',0,'')""",
+                VALUES (?,?,?,?,?,1,?,?,'',?,?,'',?,?,'',0,'')""",
                 guid, spec.username, domain, spec.first_name, spec.last_name,
-                spec.username, full)
+                "Existing AD user, added from web app" if ad_user else "Created from web app",
+                spec.username, full, a.object_guid, a.email, a.sid)
             cur.execute(
                 f"""INSERT INTO {self.radio}.tbUser
                 (guid,idprefix,idrole,EnableDigitalSign,isactive,IdDefaultFunctionality,UserName,SignatoryCode)

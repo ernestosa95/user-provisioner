@@ -3,9 +3,11 @@
 {% if db_error %}<p class="err">No se pudo leer Suitestensa: {{ db_error }}</p>{% endif %}
 {% for e in errors %}<p class="{{ 'ok' if e.ok else 'err' }}">{{ '✔' if e.ok else '✖' }} {{ e.name }}{% if e.detail %}: {{ e.detail }}{% endif %}</p>{% endfor %}
 <form method="post" action="/users"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% if ad_external %}<p class="mut">AD ajeno (solo lectura): el usuario tiene que existir en AD. Nombre y apellido se toman de AD.</p>
+{% else %}<div class="chk"><input type="checkbox" id="existing_ad" name="existing_ad" value="1" {{ 'checked' if values.existing_ad }}><label for="existing_ad">Ya existe en AD: no crearlo, solo darlo de alta en Suitestensa (nombre y apellido se toman de AD)</label></div>{% endif %}
 <div class="grid">
-<div><label>Nombre</label><input name="first_name" required value="{{ values.first_name }}"></div>
-<div><label>Apellido</label><input name="last_name" required value="{{ values.last_name }}"></div>
+<div><label>Nombre</label><input name="first_name" value="{{ values.first_name }}"></div>
+<div><label>Apellido</label><input name="last_name" value="{{ values.last_name }}"></div>
 <div><label>Usuario de dominio</label><input name="username" required pattern="[A-Za-z0-9._\-]{3,20}" value="{{ values.username }}" placeholder="nombre.apellido"></div>
 <div><label>Prefijo</label><select name="prefix" required><option value="">—</option>
 {% for p in prefixes %}<option {{ 'selected' if p == values.prefix }}>{{ p }}</option>{% endfor %}</select></div>

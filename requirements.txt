@@ -5,3 +5,4 @@ python-multipart>=0.0.9
 itsdangerous>=2.2
 cryptography>=42
 pyodbc>=5.1
+openpyxl>=3.1

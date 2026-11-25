@@ -7,9 +7,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import provisioning
+from . import bulk, provisioning
 from .provisioning import USERNAME_RE
 from .config import ROOT, Settings, load_settings
 from .crypto import Vault
@@ -53,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     site = app.state.site = SiteConfig(app.state.store, Vault(s.data_dir))
     s.attach(site)
     app.state.ad, app.state.db = build_services(s)
+    app.state.bulk = bulk.BulkManager()
     app.add_middleware(SessionMiddleware, secret_key=site.session_key(),
                        same_site="strict", https_only=bool(s.get("app", "https_only", False)),
                        max_age=8 * 3600)
@@ -151,14 +153,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- alta de usuario ---------------------------------------------
     def form_ctx(request, values=None, errors=None):
         rm = app.state.store.role_map()
+        base = dict(values=values or {}, errors=errors or [], ad_external=ad_external())
         try:
             roles = [(r, r in rm) for r in app.state.db.list_roles()]
-            return dict(roles=roles, prefixes=app.state.db.list_prefixes(),
-                        bus=app.state.db.list_business_units(),
-                        values=values or {}, errors=errors or [], db_error=None)
+            return base | dict(roles=roles, prefixes=app.state.db.list_prefixes(),
+                               bus=app.state.db.list_business_units(), db_error=None)
         except ServiceError as e:
-            return dict(roles=[], prefixes=[], bus=[], values=values or {},
-                        errors=errors or [], db_error=str(e))
+            return base | dict(roles=[], prefixes=[], bus=[], db_error=str(e))
+
+    def ad_external() -> bool:
+        return bool(s.get("ad", "external", False))
 
     @app.get("/", response_class=HTMLResponse)
     def new_user(request: Request, u=Depends(current)):
@@ -171,23 +175,87 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         spec = UserSpec(
             username=g("username").lower(), first_name=g("first_name"), last_name=g("last_name"),
             prefix=g("prefix"), role=g("role"),
-            business_units=[b for b in dict.fromkeys(f.getlist("bu")) if b])
+            business_units=[b for b in dict.fromkeys(f.getlist("bu")) if b],
+            existing_ad=ad_external() or g("existing_ad") == "1")
         store = app.state.store
         # AD (PowerShell) y SQL son bloqueantes: fuera del event loop.
         password = s.get("ad", "default_password") or ("Demo.Pass.01" if s.mode == "demo" else "")
         ok, steps = await run_in_threadpool(
             provisioning.provision, spec, app.state.ad, app.state.db, store.role_map(),
             password,
-            rollback_ad=bool(s.get("app", "rollback_ad_on_sql_failure", True)))
+            rollback_ad=bool(s.get("app", "rollback_ad_on_sql_failure", True)),
+            ad_external=ad_external())
         store.log(u["username"], "create_user", spec.username, ok,
-                  {"role": spec.role, "bu": spec.business_units,
+                  {"role": spec.role, "bu": spec.business_units, "existing_ad": spec.existing_ad,
                    "steps": [(x.name, x.ok, x.detail) for x in steps]})
         if not ok:
             keep = ["username", "first_name", "last_name", "prefix", "role"]
-            values = {k: g(k) for k in keep} | {"bu": spec.business_units}
+            values = {k: g(k) for k in keep} | {"bu": spec.business_units,
+                                                "existing_ad": spec.existing_ad}
             ctx = await run_in_threadpool(form_ctx, request, values, steps)
             return render(request, "new_user.html", **ctx)
         return render(request, "result.html", spec=spec, steps=steps)
+
+    # --- carga masiva desde Excel ------------------------------------
+    @app.get("/bulk", response_class=HTMLResponse)
+    def bulk_form(request: Request, u=Depends(current)):
+        return render(request, "bulk.html", error=None, ad_external=ad_external(),
+                      running=app.state.bulk.running())
+
+    @app.post("/bulk/preview", dependencies=[Depends(check_csrf)], response_class=HTMLResponse)
+    async def bulk_preview(request: Request, u=Depends(current)):
+        f = await request.form()
+        up = f.get("file")
+        use_existing = f.get("use_existing") == "1"
+        try:
+            if not isinstance(up, UploadFile) or not up.filename:
+                raise ServiceError("Seleccione el Excel (.xlsx)")
+            data = await up.read(10 * 1024 * 1024 + 1)
+            if len(data) > 10 * 1024 * 1024:
+                raise ServiceError("El archivo supera los 10 MB")
+            password = s.get("ad", "default_password") or ("Demo.Pass.01" if s.mode == "demo" else "")
+            rows = await run_in_threadpool(lambda: bulk.preview(
+                bulk.read_excel(data), app.state.ad, app.state.db, app.state.store.role_map(),
+                use_existing=use_existing, ad_external=ad_external(), has_password=bool(password)))
+        except ServiceError as e:
+            return render(request, "bulk.html", error=str(e), ad_external=ad_external(),
+                          running=app.state.bulk.running())
+        token = app.state.bulk.save_preview(u["username"], up.filename, rows)
+        return render(request, "bulk_preview.html", rows=rows, token=token, filename=up.filename,
+                      valid=sum(r.ok for r in rows))
+
+    @app.post("/bulk/run", dependencies=[Depends(check_csrf)])
+    def bulk_run(request: Request, token: str = Form(...), u=Depends(current)):
+        store = app.state.store
+        password = s.get("ad", "default_password") or ("Demo.Pass.01" if s.mode == "demo" else "")
+        rollback = bool(s.get("app", "rollback_ad_on_sql_failure", True))
+
+        def run_one(job, spec):
+            ok, steps = provisioning.provision(spec, app.state.ad, app.state.db, store.role_map(),
+                                               password, rollback_ad=rollback,
+                                               ad_external=ad_external())
+            store.log(u["username"], "create_user", spec.username, ok,
+                      {"role": spec.role, "bu": spec.business_units, "existing_ad": spec.existing_ad,
+                       "bulk": job.id, "steps": [(x.name, x.ok, x.detail) for x in steps]})
+            return ok, steps
+
+        def on_done(job):
+            store.log(u["username"], "bulk_upload", job.filename, job.ok_count == len(job.rows),
+                      {"job": job.id, "total": len(job.rows), "ok": job.ok_count})
+
+        try:
+            job = app.state.bulk.start(token, u["username"], run_one, on_done)
+        except ServiceError as e:
+            return render(request, "bulk.html", error=str(e), ad_external=ad_external(),
+                          running=app.state.bulk.running())
+        return RedirectResponse(f"/bulk/job/{job.id}", 303)
+
+    @app.get("/bulk/job/{job_id}", response_class=HTMLResponse)
+    def bulk_job(request: Request, job_id: str, u=Depends(current)):
+        job = app.state.bulk.jobs.get(job_id)
+        if job is None:
+            raise HTTPException(404)
+        return render(request, "bulk_job.html", job=job)
 
     # --- admin: roles, admins, auditoria --------------------------------
     @app.get("/roles", response_class=HTMLResponse)

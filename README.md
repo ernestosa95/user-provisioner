@@ -14,6 +14,23 @@ Reemplaza el flujo manual de `Create_AD_Groups`, `Import_Users_to_AD`,
 5. Si falla el paso 4, hace rollback de SQL y elimina el usuario de AD que acaba de crear.
 6. Todo queda en la auditoría (sin contraseñas).
 
+### Usuarios que ya existen en AD
+- **Por alta:** en *Nuevo usuario*, marcar *Ya existe en AD*: no se crea en AD, se toman nombre, apellido,
+  GUID, SID y mail de AD y solo se inserta en Suitestensa. Si falla SQL, **no** se borra nada de AD.
+- **Por sitio:** en *Configuración*, *AD ajeno (solo lectura)*: la app nunca crea ni borra usuarios en AD;
+  todos tienen que existir antes. No hacen falta la clave genérica ni la OU; la cuenta de servicio solo necesita lectura.
+
+### Carga masiva
+*Carga masiva* recibe el Excel de configuración (`ConfigurationRIS.xlsx`) y lee la hoja `User`
+(encabezados técnicos en la fila 2: `IdPrefix`, `Surname`, `Name`, `IdRole`, `UserName`, `BusinessUnit`…`3`).
+1. Vista previa: valida cada fila (prefijo, rol, BU, repetidos, AD y Suitestensa) sin modificar nada.
+2. Al confirmar se procesan solo las filas válidas, una por una como un alta individual (con su rollback),
+   en segundo plano; la página muestra el avance. Máximo 500 usuarios por archivo, una carga a la vez.
+3. Cada fila queda en la auditoría, más un resumen `bulk_upload`.
+
+No se importan `EnableDigitalSign` (la firma digital queda deshabilitada), `SignatoryCode`/TaxCode ni
+`Externalcode`: la vista previa lo avisa en cada fila que los trae. `EnableVewReport` se ignora (depende del rol).
+
 Roles, prefijos y BU se leen de la BD del sitio. En AD solo se crea el usuario (sin grupos):
 rol, perfil y BU viven en Suitestensa. El mapeo **rol → perfil** se edita en la pantalla *Roles* (valores iniciales tomados de `configure_users.ps1`).
 
@@ -57,6 +74,7 @@ Si la configuración de AD queda mal y `ebitadmin` no puede ingresar, ejecutar e
 
 ## Estructura
 - `app/provisioning.py` — orquestación y rollback.
+- `app/bulk.py` — carga masiva: lectura del Excel, vista previa y ejecución en segundo plano.
 - `app/services/` — `ad_powershell.py` (AD), `sql_suitestensa.py` (SQL), `demo.py` (simulados).
 - `app/ps/ad.ps1` — operaciones AD; los parámetros viajan por variables de entorno.
 - `app/store.py` — SQLite local: admins habilitados, mapeo de roles, configuración, auditoría.
@@ -74,6 +92,6 @@ Si la configuración de AD queda mal y `ebitadmin` no puede ingresar, ejecutar e
   - Hecho: esquema validado con `docs/extraer_esquemas.sql`; los INSERT coinciden (sin cambios).
   - Hecho: primera alta (`prueba.alta`, Technician → `T_S_R_M`), verificada en AD, en SQL y con login en Suitestensa.
   - Hecho: rollback (perfil inexistente → falla SQL después de crear en AD → el usuario se elimina de AD).
-- Carga masiva desde la hoja `User` del Excel.
+- Probar en el sitio de test la carga masiva y el alta de usuarios que ya existen en AD.
 - Firma digital (fuera de alcance: se inserta `EnableDigitalSign = 0`, sin código de firmante).
 - Campos que el script original dejaba vacíos (`ActiveDirectoryObjectGUID`, `ObjectSID`, Email).

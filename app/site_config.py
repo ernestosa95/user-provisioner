@@ -22,9 +22,12 @@ class Field:
 
 
 FIELDS = [
+    Field("ad", "external", "AD ajeno (solo lectura): no crear ni borrar usuarios en AD; "
+          "dar de alta en Suitestensa solo usuarios que ya existen en AD", "bool", False),
     Field("ad", "server", "Controlador de dominio", help="ej. DCV01.suitestensa.local"),
     Field("ad", "domain", "Dominio", help="ej. suitestensa.local"),
-    Field("ad", "ou", "OU donde se crean los usuarios", help="ej. OU=Usuarios,DC=suitestensa,DC=local"),
+    Field("ad", "ou", "OU donde se crean los usuarios",
+          help="ej. OU=Usuarios,DC=suitestensa,DC=local. Con AD ajeno puede quedar vacío."),
     Field("ad", "default_password", "Clave genérica de los usuarios nuevos", "secret"),
     Field("ad", "password_never_expires", "La clave de los usuarios nuevos no expira", "bool", True),
     Field("ad", "service_user", "Cuenta de servicio (opcional)",
